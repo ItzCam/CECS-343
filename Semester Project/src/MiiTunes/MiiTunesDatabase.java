@@ -7,7 +7,7 @@ import java.util.logging.Logger;
 
 /**
  * This class sets up our Miitunes Database to be connected
- * Version 1.0
+ * Version 1.1 - Had to fix deleteSong function, original prompted a SQL error
  * 
  * @author Antonio Hughes
  * @author Noah Avina
@@ -20,7 +20,7 @@ public class MiiTunesDatabase {
     private String user = "root";
     private String password = "";
     private String DatabaseURL = "jdbc:mysql://localhost:3306/MiiTunes?serverTimezone=PST";
-    private String tableName = "Libary";
+    private String tableName = "Library";
 
     private Connection connect;
     private Statement stmt;
@@ -99,7 +99,7 @@ public class MiiTunesDatabase {
     		stmt = connect.createStatement();
     		String pathname = song.getPath();
     		
-    		stmt.execute("DELETE FROM " + tableName + "WHERE pathname='" + pathname + "'");
+    		stmt.execute("DELETE FROM " + tableName + " WHERE path='" + pathname + "'");
     		
     		return true;
     	} catch(SQLException e) {
@@ -164,6 +164,10 @@ public class MiiTunesDatabase {
         }
     }       
 }
+
+
+
+
 
 
 
