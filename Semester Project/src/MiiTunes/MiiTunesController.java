@@ -11,7 +11,16 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Map;
 
-// Originaly controller.java Version 1.0
+
+/**
+ * Controller class represents the function of the MiiTunes MP3 player
+ * 
+ * @author Antonio Hughes
+ * @author Noah Avina
+ * 
+ * Version 1.0 - Initial commit on Github
+ *
+ */
 
 public class MiiTunesController implements BasicPlayerListener {
 	
@@ -37,18 +46,35 @@ public class MiiTunesController implements BasicPlayerListener {
         songs = new ArrayList<Song>();
     }
 
+    /**
+     * Method adds a song
+     * @param song - song to be added
+     */
     public void addSong(Song song) {
     	songs.add(song);
     }
 
+    /**
+     * Method to get all songs stored in MiiTunes
+     * @return all songs
+     */
     public ArrayList<Song> getAllSongs() {
     	return songs;
     }
 
+    /**
+     * Method to find a certain song by its index in MiiTunes
+     * @param index - position of the song
+     * @return specific song(s)
+     */
     public Song getSong(int index) {
         return songs.get(index);
     }
 
+    /**
+     * Method deletes a certain song by its index in MiiTunes
+     * @param index - position of the song
+     */
     public void deleteSong(int index) {
         if(songs.get(index) == songPlaying) stop();
         songs.remove(index);
@@ -59,25 +85,32 @@ public class MiiTunesController implements BasicPlayerListener {
      * @param song the song to be played
      */
     public void play(Song song, boolean isSongExternal) {
-    	// If song currently playing is the same as song passed in, do nothing
+    	
+    	// If song currently playing is the same as song selected to play, do nothing
+    	
         if(songPlaying != song) {
             boolean update = false;
             try {
+            	
                 // If the player is paused, set value to indicate that GUI pause_resume button should be updated
+            	
                 if(player.getStatus() == BasicPlayer.PAUSED) update = true;
 
-                // Start playing the song
+                // Start playing the selected song
+                
                 controller.open(new File(song.getPath()));
                 controller.play();
 
                 // Updates pause_resume button in GUI to switch display from 'resume' to 'pause'
-                if(update) BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                
+                if(update)MiiTunes.view.updatePauseResumeButton("Pause");
 
                 songPlaying = song;
                 isExternalSongPlaying = isSongExternal;
 
                 // Updates GUI area that displays the song that is currently playing
-                BetterThaniTunes.view.updatePlayer(songPlaying);
+                
+                MiiTunes.view.updatePlayer(songPlaying);
             } catch(BasicPlayerException e) {
             	
             	e.printStackTrace(); 
@@ -89,18 +122,24 @@ public class MiiTunesController implements BasicPlayerListener {
      * Method stops the current song from playing
      */
     public void stop() {
-        // If player isn't playing a song, do nothing
+    	
+        // If player isn't playing a song, then do nothing
+    	
     	if(isPlayerActive()) {
             try {
-                // Stop the song
+            	
+                // Stop the currently playing song
+            	
                 controller.stop();
                 songPlaying = null;
 
-                // Update GUI are that displays the song that is currently playing
-                BetterThaniTunes.view.clearPlayer();
+                // Update the GUI that displays the song that is currently playing to stop
+                
+                MiiTunes.view.clearPlayer();
 
                 // Updates pause_resume button in GUI to switch display from 'resume' to 'pause'
-                BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                
+                MiiTunes.view.updatePauseResumeButton("Pause");
             } catch(BasicPlayerException e) { e.printStackTrace(); }
     	}
     	else System.out.println("Nothing is playing");
@@ -113,20 +152,26 @@ public class MiiTunesController implements BasicPlayerListener {
     public void pause_resume() {
     	if(player.getStatus() == BasicPlayer.PLAYING) {
             try {
+            	
                 // Pause the song
+            	
                 controller.pause();
 
                 // Updates pause_resume button in GUI to switch display from 'pause' to 'resume'
-                BetterThaniTunes.view.updatePauseResumeButton("Resume");
+                
+                MiiTunes.view.updatePauseResumeButton("Resume");
             } catch(BasicPlayerException e) { e.printStackTrace(); }
     	}
     	else if(player.getStatus() == BasicPlayer.PAUSED) {
             try {
+            	
                 // Resume the song
+            	
                 controller.resume();
 
                 // Update pause_resume button in GUI to switch display from 'pause' to 'resume'
-                BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                
+                MiiTunes.view.updatePauseResumeButton("Pause");
             } catch(BasicPlayerException e) { e.printStackTrace(); }
     	}
     	else System.out.println("Nothing is playing");
@@ -136,21 +181,30 @@ public class MiiTunesController implements BasicPlayerListener {
      * Method plays the next song in the library
      */
     public void nextSong() {
+    	
         // If external song was playing, don't pay anything after it ends
+    	
     	if(!isExternalSongPlaying && isPlayerActive()) {
+    		
             // If user has option to repeat song selected, replay the same song
+    		
             if(repeatSong) {
                 try {
+                	
                     // If the player is paused, update the pause_resume button to display 'pause'
+                	
                     if(player.getStatus() == BasicPlayer.PAUSED)
-                        BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                        MiiTunes.view.updatePauseResumeButton("Pause");
 
                     // Play the song
+                    
                     controller.open(new File(songPlaying.getPath()));
                     controller.play();
                 } catch(BasicPlayerException e) { e.printStackTrace(); }
             }
-            // User doesn't have repeat song option selected, so play next song in library
+            
+            // If the user doesn't have repeat song option selected, so play next song in library
+            
             else {
                 int index = songs.indexOf(songPlaying);
                 if(index == (songs.size() - 1)) {
@@ -167,8 +221,8 @@ public class MiiTunesController implements BasicPlayerListener {
                 play(song, false);
                 songPlaying = song;
 
-                BetterThaniTunes.view.updatePlayer(songPlaying);
-                BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                MiiTunes.view.updatePlayer(songPlaying);
+                MiiTunes.view.updatePauseResumeButton("Pause");
             }
         }
     }
@@ -184,7 +238,7 @@ public class MiiTunesController implements BasicPlayerListener {
                 try {
                     // If the player is paused, update the pause_resume button to display 'pause'
                     if(player.getStatus() == BasicPlayer.PAUSED)
-                        BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                        MiiTunes.view.updatePauseResumeButton("Pause");
 
                     // Play the song
                     controller.open(new File(songPlaying.getPath()));
@@ -208,26 +262,41 @@ public class MiiTunesController implements BasicPlayerListener {
                 play(song, false);
                 songPlaying = song;
 
-                BetterThaniTunes.view.updatePlayer(songPlaying);
-                BetterThaniTunes.view.updatePauseResumeButton("Pause");
+                MiiTunes.view.updatePlayer(songPlaying);
+                MiiTunes.view.updatePauseResumeButton("Pause");
             }
         }
     }
 
+    /**
+     * Boolean check to see if the MiiTunes player is active or not
+     * @return true if player is playing or paused, otherwise return false due to error
+     */
     public boolean isPlayerActive() {
         if(player.getStatus() == BasicPlayer.PLAYING || player.getStatus() == BasicPlayer.PAUSED)
             return true;
         return false;
     }
 
+    /**
+     * This method will update the repeat playlist status in our GUI if boolean condition is met
+     * @param repeat - boolean to check for repeat playlist status
+     */
     public void updateRepeatPlaylistStatus(boolean repeat) {
         this.repeatPlaylist = repeat;
     }
 
+    /**
+     * This method will update the repeat song status in our GUI if boolean condition is met
+     * @param repeat - boolean to check for repeat song status
+     */
     public void updateRepeatSongStatus(boolean repeat) {
     	this.repeatSong = repeat;
     }
 
+    /**
+     * Simple fuction to represent the different state updates in the MiiTunes player
+     */
     public void stateUpdated(BasicPlayerEvent e) {
     	display("\nState updated: " + e.toString());
     	if(songPlaying != null && e.toString().substring(0,3).equals("EOM")) {
@@ -236,6 +305,9 @@ public class MiiTunesController implements BasicPlayerListener {
     	}
     }
 
+    /**
+     * Simple function to open song objects, pertaining more in the console of the program
+     */
     public void opened(Object stream, Map properties) {
     	display("\nOpened: " + properties.toString());
     }
@@ -246,10 +318,17 @@ public class MiiTunesController implements BasicPlayerListener {
                 + ", frames: " + properties.get("mp3.frame") + "/" + songPlaying.getFrames() + "}\r");*/
     }
 
+    /**
+     * Method to set the contoller for all MiiTunes operations, pertaining more in the console of the program
+     */
     public void setController(BasicController controller) {
-    	display("\nsetController: " + controller);
+    	display("\nsetController: " + controller + "\n");
     }
 
+    /**
+     * Simple display function for strings
+     * @param s - the string to be displayed
+     */
     public void display(String s) {
     	if(out != null) out.print(s);
     }
