@@ -13,6 +13,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
@@ -47,7 +48,7 @@ import java.util.List;
  * @author Antonio Hughes
  * @author Noah Avina
  *
- * Version 1.1 - Add/Delete Multiple Songs
+ * Version 1.3 - Genres & Sidebar
  */
 
 class View extends JFrame {
@@ -90,11 +91,12 @@ class View extends JFrame {
         this.fileChooser = new JFileChooser();
         this.extensionFilter = new FileNameExtensionFilter("MP3 files","mp3");
 
-        // Recognizing mp3 extension tags 
+        // Recognizing mp3 extension tags & setting up connection to database
         
         fileChooser.setFileFilter(extensionFilter);
         fileChooser.setMultiSelectionEnabled(true);
-        database.Connect();
+        boolean connectionCreated = database.Connect();
+        if(!connectionCreated) System.exit(0);
         
 
         // Adding all songs in database to song table
@@ -200,8 +202,7 @@ class View extends JFrame {
         popupMenu.add(addSongPopupMenuItem);
         popupMenu.add(deleteSongPopupMenuItem);
         
-        // New code added for side panel
-        repeatSong = new JCheckBox("Repeat Song");
+        // Code added for side panel
         sideBar = new JPanel();
         sideBar.add(new JTextArea("Library"));
         repeatSong.addActionListener(new repeatSongButtonListener());
@@ -215,6 +216,8 @@ class View extends JFrame {
         stop = new JButton("Stop");  
         previous = new JButton("Previous song");
         next = new JButton("Next song");
+        repeatSong = new JCheckBox("Repeat Song");
+        //repeatPlaylist = new JCheckBox("Repeat Playlist");
 
         // Add actions to control buttons 
         play.addActionListener(new playButtonListener());
@@ -222,6 +225,8 @@ class View extends JFrame {
         pause_resume.addActionListener(new pause_resumeButtonListener());
         next.addActionListener(new nextSongButtonListener());
         previous.addActionListener(new previousSongButtonListener());
+        repeatSong.addActionListener(new repeatSongButtonListener());
+        //repeatPlaylist.addActionListener(new repeatPlaylistButtonListener());
 
         // Add control buttons to control panel component
         controlPanel = new JPanel();
@@ -261,8 +266,6 @@ class View extends JFrame {
 
         // Set up the GUI window size
         this.getContentPane().add(framePanel);
-        this.setPreferredSize(new Dimension(1000, 700));
-        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.pack();
         this.setVisible(true);
     }
