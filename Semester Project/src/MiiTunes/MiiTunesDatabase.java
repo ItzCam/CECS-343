@@ -7,7 +7,7 @@ import java.util.logging.Logger;
 
 /**
  * This class sets up our Miitunes Database to be connected
- * Version 1.1 - Had to fix deleteSong function, original prompted a SQL error
+ * Version 1.3 - Genres & Sidebar
  * 
  * @author Antonio Hughes
  * @author Noah Avina
@@ -28,15 +28,19 @@ public class MiiTunesDatabase {
     /**
      * This method estahblishes the connection to the MiiTunes database
      */
-    public void Connect() {
+    public boolean Connect() {
     	
         System.out.println("Connecting to MiiTunes database now...");
         
         try {
             connect = DriverManager.getConnection(DatabaseURL, user, password);
+            return true;
         }
         catch (SQLException ex) {
+        	
             Logger.getLogger(MiiTunesDatabase.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("\nUnable to establish connection to MiiTunes database");
+            return false;
         }
     }
     
@@ -114,6 +118,8 @@ public class MiiTunesDatabase {
      * @return a 2D array containing the song info for our table in the GUI
      */
     public Object[][] returnAllSongs() {
+    	
+
         try {
             stmt = connect.createStatement();
 
@@ -136,7 +142,13 @@ public class MiiTunesDatabase {
                 songData[row][1] = results.getString(2);
                 songData[row][2] = results.getString(3); 
                 songData[row][3] = results.getString(4);
-                songData[row][4] = Integer.toString(results.getInt(5));
+                
+                
+                //Updated Code to show genres hopefully
+                if(results.getInt(5) == -1) songData[row][4] = MiiTunesController.genres.get(2);
+                else songData[row][4] = MiiTunesController.genres.get(results.getInt(5));
+                
+                
                 songData[row][5] = results.getString(6);
                 songData[row][6] = results.getString(7);
             }
@@ -164,10 +176,6 @@ public class MiiTunesDatabase {
         }
     }       
 }
-
-
-
-
 
 
 
