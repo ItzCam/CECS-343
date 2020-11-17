@@ -12,9 +12,8 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTable;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
 import javax.swing.JTextPane;
+import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.text.SimpleAttributeSet;
@@ -22,6 +21,7 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.TableView.TableRow;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.tree.DefaultMutableTreeNode;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -48,7 +48,7 @@ import java.util.List;
  * @author Antonio Hughes
  * @author Noah Avina
  *
- * Version 1.3 - Genres & Sidebar
+ * Version 1.4 - Clean up constructors & Stuff
  */
 
 class View extends JFrame {
@@ -56,16 +56,16 @@ class View extends JFrame {
     JMenuBar menuBar;
     JPopupMenu popupMenu;
     JTable songTable;
-    JScrollPane scrollPane;
+    JScrollPane scrollPane, sidePanel;
     JTextPane currentSong;
-    JCheckBox repeatSong; 
+    JCheckBox repeatSong, repeatPlaylist; 
     
     JButton play, stop, pause_resume, next, previous;
-    JPanel framePanel, controlPanel, songInfoPanel, sideBar;
+    JPanel framePanel, controlPanel, songInfoPanel, bottomPanel;
 
-    String[] cols = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
+    String[] tabeHeaders = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
     Object[][] songData;
-    DefaultTableModel tableModel = new DefaultTableModel();
+    DefaultTableModel tableModel;
 
     MiiTunesController controller;
     MiiTunesDatabase database;
@@ -81,196 +81,31 @@ class View extends JFrame {
     	// Displayed at the top of the GUI window
     
         super("MiiTunes");
-        this.setPreferredSize(new Dimension(1000, 700));
-        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         
         // Estahblishing components GUI will need to operate correctly
         
         this.controller = new MiiTunesController();
         this.database = new MiiTunesDatabase();
-        this.fileChooser = new JFileChooser();
-        this.extensionFilter = new FileNameExtensionFilter("MP3 files","mp3");
-
-        // Recognizing mp3 extension tags & setting up connection to database
         
-        fileChooser.setFileFilter(extensionFilter);
-        fileChooser.setMultiSelectionEnabled(true);
+
+        // Setting up connection to database & core components to GUI 
+        
         boolean connectionCreated = database.Connect();
         if(!connectionCreated) System.exit(0);
         
-
-        // Adding all songs in database to song table
+        setupFileChooser();
+        setupSongTable();
+        setupMenuBar();
+        setupSidePanel();
+        setupButtons();
+        setupControlPanel();
+        setupSongArea();
+        setupFramePanel();
+        setupGuiWindow();
         
-        songData = database.returnAllSongs();
-        for(int i = 0; i < songData.length; i++) {
-        	
-            controller.addSong(new Song((String)songData[i][6]));
-        }
-
-        tableModel = new DefaultTableModel(songData, cols);
-        songTable = new JTable(tableModel);
-        songTable.addMouseListener(new popupMenuListener());
-        
-
-        // Add drag and drop functionality to song table (Still testing this)
-        
-        songTable.setDropTarget(
-        		
-            new DropTarget() {
-            	
-                @Override
-                public synchronized void drop(DropTargetDropEvent dtde) {
-                	
-                	// Enables the program to recognize by boolean drag and drop files, otherwise cancels operation
-                	
-                    if(dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-                    	
-                        dtde.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
-                        Transferable t = dtde.getTransferable();
-                        List fileList = null;
-                        try {
-                            fileList = (List)t.getTransferData(DataFlavor.javaFileListFlavor);
-                            
-                            if(fileList.size() > 0) {
-                            	
-                                songTable.clearSelection();
-                                Point point = dtde.getLocation();
-                                int row = songTable.rowAtPoint(point);
-                                
-                                for(Object value : fileList) {
-                                	
-                                    if(value instanceof File) {
-                                    	
-                                        File f = (File) value;
-                                        Song song = new Song(f.getAbsolutePath());
-                                        addSong(song);
-                                    }
-                                }
-                            }
-                        } catch(UnsupportedFlavorException | IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    else {
-                        dtde.rejectDrop();
-                    }
-                }
-
-                @Override
-                public synchronized void dragOver(DropTargetDragEvent dtde) {
-                    Point point = dtde.getLocation();
-                    int row = songTable.rowAtPoint(point);
-                    if(row < 0)
-                        songTable.clearSelection();
-                    else
-                        songTable.setRowSelectionInterval(row, row);
-                    dtde.acceptDrag(DnDConstants.ACTION_COPY_OR_MOVE);
-                }
-            });
-
-        scrollPane = new JScrollPane(songTable);
-
-        // Create the File menu bar with several options
-        
-        menuBar = new JMenuBar();
-        JMenu file = new JMenu("File");
-
-        JMenuItem addSongMenuItem = new JMenuItem("Add selected songs");
-        JMenuItem deleteSongMenuItem = new JMenuItem("Delete selected songs");
-        JMenuItem playIndividualSongMenuItem = new JMenuItem("Play a song not in the library");
-        JMenuItem quitApplicationMenuItem = new JMenuItem("Exit program");
-
-        addSongMenuItem.addActionListener(new addSongListener());
-        deleteSongMenuItem.addActionListener(new deleteSongListener());
-        playIndividualSongMenuItem.addActionListener(new playIndividualSongListener());
-        quitApplicationMenuItem.addActionListener(new quitButtonListener());
-
-        file.add(addSongMenuItem);
-        file.add(deleteSongMenuItem);
-        file.add(playIndividualSongMenuItem);
-        file.add(new JSeparator());
-        file.add(quitApplicationMenuItem);
-        menuBar.add(file);
-
-        // Create popup menu that displays when right click 
-        
-        popupMenu = new JPopupMenu();
-        JMenuItem addSongPopupMenuItem = new JMenuItem("Add selected songs");
-        JMenuItem deleteSongPopupMenuItem = new JMenuItem("Delete selected songs");
-        addSongPopupMenuItem.addActionListener(new addSongListener());
-        deleteSongPopupMenuItem.addActionListener(new deleteSongListener());
-        popupMenu.add(addSongPopupMenuItem);
-        popupMenu.add(deleteSongPopupMenuItem);
-        
-        // Code added for side panel
-        sideBar = new JPanel();
-        sideBar.add(new JTextArea("Library"));
-        repeatSong.addActionListener(new repeatSongButtonListener());
-        sideBar.getComponent(0).setBackground(sideBar.getBackground());
-        sideBar.setPreferredSize(new Dimension((int)this.getPreferredSize().getWidth() - 875, (int)this.getPreferredSize().getHeight()));
-        
-
-        // Instantiate control buttons
-        play = new JButton("Play");
-        pause_resume = new JButton("Pause");
-        stop = new JButton("Stop");  
-        previous = new JButton("Previous song");
-        next = new JButton("Next song");
-        repeatSong = new JCheckBox("Repeat Song");
-        //repeatPlaylist = new JCheckBox("Repeat Playlist");
-
-        // Add actions to control buttons 
-        play.addActionListener(new playButtonListener());
-        stop.addActionListener(new stopButtonListener());
-        pause_resume.addActionListener(new pause_resumeButtonListener());
-        next.addActionListener(new nextSongButtonListener());
-        previous.addActionListener(new previousSongButtonListener());
-        repeatSong.addActionListener(new repeatSongButtonListener());
-        //repeatPlaylist.addActionListener(new repeatPlaylistButtonListener());
-
-        // Add control buttons to control panel component
-        controlPanel = new JPanel();
-        controlPanel.add(previous);
-        controlPanel.add(play);
-        controlPanel.add(pause_resume);
-        controlPanel.add(stop);
-        controlPanel.add(next);
-        controlPanel.add(repeatSong);
-        //controlPanel.add(repeatPlaylist);
-
-        // Set up current song playing area
-        currentSong = new JTextPane();
-        StyledDocument doc = currentSong.getStyledDocument();
-        SimpleAttributeSet center = new SimpleAttributeSet();
-        StyleConstants.setAlignment(center, StyleConstants.ALIGN_CENTER);
-        doc.setParagraphAttributes(0, doc.getLength(), center, false);
-        
-        // Add song text pane to info panel
-        songInfoPanel = new JPanel();
-        songInfoPanel.add(currentSong);
-        currentSong.setBackground(songInfoPanel.getBackground());
-
-        // Add current song playing area and player controls to bottom of gui
-        JPanel bottomPanel = new JPanel(new BorderLayout());
-        bottomPanel.add(songInfoPanel, BorderLayout.NORTH);
-        bottomPanel.add(controlPanel, BorderLayout.SOUTH);
-
-        // Add all components to gui main panel
-        framePanel = new JPanel();
-        framePanel.setLayout(new BorderLayout());
-        framePanel.add(menuBar, BorderLayout.NORTH);
-        framePanel.add(scrollPane,BorderLayout.CENTER);
-        framePanel.add(sideBar, BorderLayout.WEST);
-        framePanel.add(bottomPanel, BorderLayout.SOUTH);
-        framePanel.addMouseListener(new popupMenuListener());
-
-        // Set up the GUI window size
-        this.getContentPane().add(framePanel);
-        this.pack();
-        this.setVisible(true);
     }
-
-    // Displays which song is currently playing in GUI window
+    
+ // Displays which song is currently playing in GUI window
     public void updatePlayer(Song song) {
     	currentSong.setText(song.getTitle() + "\n" + song.getAlbum() + " by " + song.getArtist());
         songInfoPanel.updateUI();
@@ -366,6 +201,14 @@ class View extends JFrame {
             System.exit(0);
         }
     }
+    
+    class repeatPlaylistButtonListener implements ActionListener {
+    	@Override
+        public void actionPerformed(ActionEvent e) {
+            controller.updateRepeatPlaylistStatus(repeatPlaylist.isSelected());
+    	}
+    }
+    
     class playButtonListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -425,4 +268,251 @@ class View extends JFrame {
             controller.previousSong();
     	}
     }  
-} 
+    
+    
+    /**
+     * Setting up what files to choose - mp3 files in particular
+     */
+    public void setupFileChooser() {
+    	this.fileChooser = new JFileChooser();
+    	this.extensionFilter = new FileNameExtensionFilter("MP3 Files" , "mp3");
+    	fileChooser.setFileFilter(extensionFilter);
+    	fileChooser.setMultiSelectionEnabled(true);
+    }
+    
+    
+    /**
+     * Set up the song table
+     */
+    public void setupSongTable() {
+
+        // Adding all songs in database to song table
+        
+        songData = database.returnAllSongs();
+        
+        for(int i = 0; i < songData.length; i++) {	
+            controller.addSong(new Song((String)songData[i][6]));
+        }
+
+        tableModel = new DefaultTableModel(songData, tabeHeaders);
+        songTable = new JTable(tableModel);
+        songTable.addMouseListener(new popupMenuListener());
+        
+
+        // Add drag and drop functionality to song table 
+        
+        songTable.setDropTarget(
+        		
+            new DropTarget() {
+            	
+                @Override
+                public synchronized void drop(DropTargetDropEvent dtde) {
+                	
+                	// Enables the program to recognize by boolean drag and drop files, otherwise cancels operation
+                	
+                    if(dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                    	
+                        dtde.acceptDrop(DnDConstants.ACTION_COPY_OR_MOVE);
+                        Transferable t = dtde.getTransferable();
+                        List fileList = null;
+                        try {
+                            fileList = (List)t.getTransferData(DataFlavor.javaFileListFlavor);
+                            
+                            if(fileList.size() > 0) {
+                            	
+                                songTable.clearSelection();
+                                Point point = dtde.getLocation();
+                                int row = songTable.rowAtPoint(point);
+                                
+                                for(Object value : fileList) {
+                                	
+                                    if(value instanceof File) {
+                                    	
+                                        File f = (File) value;
+                                        Song song = new Song(f.getAbsolutePath());
+                                        addSong(song);
+                                    }
+                                }
+                            }
+                        } catch(UnsupportedFlavorException | IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    else 
+                        dtde.rejectDrop();
+                }
+
+                @Override
+                public synchronized void dragOver(DropTargetDragEvent dtde) {
+                    Point point = dtde.getLocation();
+                    int row = songTable.rowAtPoint(point);
+                    if(row < 0)
+                        songTable.clearSelection();
+                    else
+                        songTable.setRowSelectionInterval(row, row);
+                    dtde.acceptDrag(DnDConstants.ACTION_COPY_OR_MOVE);
+                }
+            });
+
+        scrollPane = new JScrollPane(songTable);
+
+    }
+    
+    
+    /**
+     * Setting up the file menu bar in application
+     */
+    public void setupMenuBar() {
+        
+        menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+
+        JMenuItem addSongMenuItem = new JMenuItem("Add songs");
+        JMenuItem deleteSongMenuItem = new JMenuItem("Delete selected songs");
+        JMenuItem playIndividualSongMenuItem = new JMenuItem("Play a song not in the library");
+        JMenuItem quitApplicationMenuItem = new JMenuItem("Exit program");
+
+        addSongMenuItem.addActionListener(new addSongListener());
+        deleteSongMenuItem.addActionListener(new deleteSongListener());
+        playIndividualSongMenuItem.addActionListener(new playIndividualSongListener());
+        quitApplicationMenuItem.addActionListener(new quitButtonListener());
+
+        fileMenu.add(addSongMenuItem);
+        fileMenu.add(deleteSongMenuItem);
+        fileMenu.add(playIndividualSongMenuItem);
+        fileMenu.add(new JSeparator());
+        fileMenu.add(quitApplicationMenuItem);
+        menuBar.add(fileMenu);
+
+    }
+    
+    
+    /**
+     * Setting up the pop-up menu when right clicking on application
+     */
+    public void setupPopupMenu() {  
+    	
+        popupMenu = new JPopupMenu();
+        JMenuItem addSongPopupMenuItem = new JMenuItem("Add selected songs");
+        JMenuItem deleteSongPopupMenuItem = new JMenuItem("Delete selected songs");
+        addSongPopupMenuItem.addActionListener(new addSongListener());
+        deleteSongPopupMenuItem.addActionListener(new deleteSongListener());
+        popupMenu.add(addSongPopupMenuItem);
+        popupMenu.add(deleteSongPopupMenuItem);
+    }
+    
+    
+    /**
+     * Setting up the side panel displaying different tables in GUI being shown
+     */
+    public void setupSidePanel() {
+        
+    	DefaultMutableTreeNode root = new DefaultMutableTreeNode("Root");
+    	root.add(new DefaultMutableTreeNode("Library"));
+    	root.add(new DefaultMutableTreeNode("Playlist"));
+    	JTree tree = new JTree(root);
+    	tree.setRootVisible(false);
+    	
+    	sidePanel = new JScrollPane(tree);
+    	sidePanel.setPreferredSize(new Dimension((int)(songTable.getPreferredSize().getWidth()/6), (int)songTable.getPreferredSize().getHeight()));
+    }
+    
+    
+    /**
+     * Setting up the control buttons 
+     */
+    public void setupButtons() {
+
+        // Instantiate control buttons
+        play = new JButton("Play");
+        pause_resume = new JButton("Pause");
+        stop = new JButton("Stop");  
+        previous = new JButton("Previous song");
+        next = new JButton("Next song");
+        repeatSong = new JCheckBox("Repeat Song");
+        repeatPlaylist = new JCheckBox("Repeat Playlist");
+
+        // Add actions to control buttons 
+        play.addActionListener(new playButtonListener());
+        stop.addActionListener(new stopButtonListener());
+        pause_resume.addActionListener(new pause_resumeButtonListener());
+        next.addActionListener(new nextSongButtonListener());
+        previous.addActionListener(new previousSongButtonListener());
+        repeatSong.addActionListener(new repeatSongButtonListener());
+        repeatPlaylist.addActionListener(new repeatPlaylistButtonListener());
+
+    }
+    
+    
+    /**
+     *  Setting up the control panel of GUI 
+     */
+    public void setupControlPanel() {
+    	
+        // Add control buttons to control panel component
+        controlPanel = new JPanel();
+        controlPanel.add(previous);
+        controlPanel.add(play);
+        controlPanel.add(pause_resume);
+        controlPanel.add(stop);
+        controlPanel.add(next);
+        controlPanel.add(repeatSong);
+        controlPanel.add(repeatPlaylist);
+        
+    }
+    
+    
+    /**
+     *  Setting up song info area on the GUI
+     */
+    public void setupSongArea() {
+
+        // Set up current song playing area
+        currentSong = new JTextPane();
+        StyledDocument doc = currentSong.getStyledDocument();
+        SimpleAttributeSet center = new SimpleAttributeSet();
+        StyleConstants.setAlignment(center, StyleConstants.ALIGN_CENTER);
+        doc.setParagraphAttributes(0, doc.getLength(), center, false);
+        
+        // Add song text pane to info panel
+        songInfoPanel = new JPanel();
+        songInfoPanel.add(currentSong);
+        currentSong.setBackground(songInfoPanel.getBackground());
+
+        // Add current song playing area and player controls to bottom of gui
+        bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.add(songInfoPanel, BorderLayout.NORTH);
+        bottomPanel.add(controlPanel, BorderLayout.SOUTH);
+    }
+    
+    
+    /**
+     * Setting up the frame panel of the GUI
+     */
+    public void setupFramePanel() {
+    	
+        // Add all components to gui main panel
+        framePanel = new JPanel();
+        framePanel.setLayout(new BorderLayout());
+        framePanel.add(menuBar, BorderLayout.NORTH);
+        framePanel.add(scrollPane,BorderLayout.CENTER);
+        framePanel.add(sidePanel, BorderLayout.WEST);
+        framePanel.add(bottomPanel, BorderLayout.SOUTH);
+        framePanel.addMouseListener(new popupMenuListener());
+        
+    }
+    
+    
+    /**
+     * Setting up the size of the GUI window
+     */
+    public void setupGuiWindow() {
+    	
+        // Set up the GUI window size
+    	this.setPreferredSize(new Dimension(1000, 700));
+    	this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        this.getContentPane().add(framePanel);
+        this.pack();
+        this.setVisible(true);
+    }
+}
