@@ -1,13 +1,20 @@
 package MiiTunes;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.*;
+
+import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
 /**
  * This class sets up our Miitunes Database to be connected
- * Version 1.3 - Genres & Sidebar
+ * Version 1.4 - Added side panel featuring playlists
  * 
  * @author Antonio Hughes
  * @author Noah Avina
@@ -20,10 +27,8 @@ public class MiiTunesDatabase {
     private String user = "root";
     private String password = "";
     private String DatabaseURL = "jdbc:mysql://localhost:3306/MiiTunes?serverTimezone=PST";
-    private String tableName = "Library";
-
-    private Connection connect;
-    private Statement stmt;
+    private Connection connection = null;
+   
 
     /**
      * This method estahblishes the connection to the MiiTunes database
@@ -33,7 +38,7 @@ public class MiiTunesDatabase {
         System.out.println("Connecting to MiiTunes database now...");
         
         try {
-            connect = DriverManager.getConnection(DatabaseURL, user, password);
+            connection = DriverManager.getConnection(DatabaseURL, user, password);
             return true;
         }
         catch (SQLException ex) {
@@ -44,53 +49,69 @@ public class MiiTunesDatabase {
         }
     }
     
+    
     /**
      * This method will execute statements to the MiiTunes database
-     * @param statement - the statement to be executed
+     * @param args - the values to be placed inside the query
+     * @param query - the statement to be executed
+     * @return true if executing the prepared statement threw no exceptions
      */
-    public void executeStatement(String statement) {
+    public boolean executeStatement(String query, Object[] args) {
+    	
+    	PreparedStatement statement = null;
     	
     	try {
-    		stmt = connect.createStatement();
-    		stmt.execute(statement);
+    		statement = connection.prepareStatement(query);
+    		for(int i = 0; i < args.length; i++) {
+                if(args[i].getClass() == String.class)
+                    statement.setString(i+1, (String)args[i]);
+                else if(args[i].getClass() == Integer.class)
+                    statement.setInt(i+1, (int)args[i]);
+    		}
+    		
+    		statement.executeUpdate();
+    		return true;
     		
     	} catch (SQLException e) {
     		
     		e.printStackTrace();
+    		return false;
     	}
     	
     }
+    
+     
+    /**
+     * This method will insert a playlist into the Playlists table
+     * @param playlistName - the name of the playlist to be inserted
+     * @return true if the playlist was succefully inserted, otherwise false if the playlist name already exists
+     */
+    public boolean insertPlaylist(String playlistName) {
+    	return executeStatement("INSERT INTO Playlists VALUE (?)", new Object[] {playlistName});
+    }
+    
     
     /**
      * This method will insert a Song's string info into the MiiTunes database
      * @param song - the song to be inserted
      * @return true if the song was succesfully added, otherwise false due to error
      */
-    public boolean insertSong(Song song) {
-    	try {
-    		stmt = connect.createStatement();
-    		
-    		stmt.execute("INSERT INTO " + tableName + " VALUES ('"
-                    + song.getTitle() + "','" + song.getArtist() + "','" 
-    				+ song.getAlbum() + "','" + song.getYear() + "'," 
-                    + song.getGenre() + ",'" + song.getComment() + "','" 
-    				+ song.getPath() +"')");
-    		
-    		return true;
-    		
-    	} catch(SQLException e) {
-    		
-    		if(e.getCause().getMessage().equals(
-    				"The statement was aborted because it would be a duplicate "
-                    + "key value in a unique or primary key constraint "
-                    + "or unique index identified by 'LIBRARY_PK' defined "
-                    + "on 'LIBRARY'."))
-    		{
-    			System.out.println("\nUnable to add file because it is a duplicate");
-    		}
-    		
-    		return false;
-    	}	
+    public boolean insertSong(Song song, String playlistName) {
+    	String query = "";
+    	Object[] args;
+    	
+    	if(playlistName == null) {
+    		query = "INSERT INTO Songs VALUES (?,?,?,?,?,?,?)";
+    		args = new Object[] {song.getTitle(), song.getArtist(), song.getAlbum(), song.getYear(), song.getGenre(), song.getComment(), song.getPath()};
+    	}
+    	else {
+    		query = "INSERT INTO SongPlaylist VALUES (?,?)";
+    		args = new Object[] {playlistName, song.getPath()};
+    	}
+    	
+    	boolean wasInserted = executeStatement(query, args);
+    	if (!wasInserted) System.out.println("\nUnable to add song!");
+    	return wasInserted;
     }
     
     /**
@@ -99,19 +120,9 @@ public class MiiTunesDatabase {
      * @return true if deleteion was succesful, otherwise return false due to error
      */
     public boolean deleteSong(Song song) {	
-    	try {
-    		stmt = connect.createStatement();
-    		String pathname = song.getPath();
-    		
-    		stmt.execute("DELETE FROM " + tableName + " WHERE path='" + pathname + "'");
-    		
-    		return true;
-    	} catch(SQLException e) {
-    		
-    		e.printStackTrace();
-    		return false;
-    	}
+    	return executeStatement("DELETE FROM Songs WHERE path = ?", new Object[] {song.getPath()});
     }
+    
     
     /**
      * This method will return all the songs from the MiiTunes database
@@ -119,22 +130,20 @@ public class MiiTunesDatabase {
      */
     public Object[][] returnAllSongs() {
     	
+    	PreparedStatement statement = null;
 
         try {
-            stmt = connect.createStatement();
-
-            // Set ResultSet to query result to determine how many songs are in the database
-            ResultSet size = stmt.executeQuery("select * from " + tableName);
-            
+            statement = connection.prepareStatement("SELECT COUNT(*) FROM Songs");
+            ResultSet results = statement.executeQuery();
             int tableSize = 0;
-            while(size.next()) tableSize++;
-            size.close();
+            while(results.next()) tableSize = results.getInt(1);
             
             // Create 2D table to be returned with correct size
             Object[][] songData = new Object[tableSize][7];
 
             // Execute query again to actually get info from ResultSet
-            ResultSet results = stmt.executeQuery("select * from " + tableName);
+            statement = connection.prepareStatement("SELECT * FROM Songs");
+            results = statement.executeQuery();
 
             for(int row = 0; row < tableSize; row++) {
                 results.next();
@@ -142,34 +151,49 @@ public class MiiTunesDatabase {
                 songData[row][1] = results.getString(2);
                 songData[row][2] = results.getString(3); 
                 songData[row][3] = results.getString(4);
-                
-                
+                   
                 //Updated Code to show genres hopefully
                 if(results.getInt(5) == -1) songData[row][4] = MiiTunesController.genres.get(2);
                 else songData[row][4] = MiiTunesController.genres.get(results.getInt(5));
-                
-                
+        
                 songData[row][5] = results.getString(6);
                 songData[row][6] = results.getString(7);
             }
-
-            results.close();
 
             return songData;
         }
         catch(SQLException e) {
             e.printStackTrace();
+            return new Object[0][0];
         }
-        return new Object[0][0];
+    }
+    
+    
+    /**
+     * This method will get all the playlist names from the database
+     * @return the ArrayList of strings that are the names of different playlists in the Playlist table in the database
+     */
+    public ArrayList<String> returnAllPlaylists() {
+    	ArrayList<String> playlists = new ArrayList<String>();
+    	PreparedStatement statement = null;
+    	try {
+    		statement = connection.prepareStatement("SELECT * FROM Playlists");
+    		ResultSet results = statement.executeQuery();
+    		
+    		while(results.next())
+    			playlists.add(results.getString("name"));
+    	} catch(SQLException e) { e.printStackTrace(); }
+    	return playlists;
+    	
     }
 
+    
     /**
      * Method disconnects from the database
      */
     public void shutdown() {
         try {
-            if(stmt != null) stmt.close();
-            if(connect != null) connect.close();
+            if(connection != null) connection.close();
         } catch(SQLException e) {
         	
             e.printStackTrace();
