@@ -16,15 +16,19 @@ import javax.swing.JTable;
 import javax.swing.JTextPane;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.TableView.TableRow;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.TableColumn;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
+import javax.swing.tree.TreeSelectionModel;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -52,7 +56,7 @@ import java.util.List;
  * @author Antonio Hughes
  * @author Noah Avina
  *
- * Version 1.5 - Added side panel featuring playlists
+ * Version 1.6 - Updated lots of stuff
  */
 
 class View extends JFrame {
@@ -67,7 +71,7 @@ class View extends JFrame {
     JButton play, stop, pause_resume, next, previous;
     JPanel framePanel, controlPanel, songInfoPanel, bottomPanel;
 
-    String[] tabeHeaders = {"Title", "Artist", "Album", "Year", "Genre", "Comment"};
+    String[] tableHeaders = {"Title", "Artist", "Album", "Year", "Genre", "Comment", "Path"};
     Object[][] songData;
     DefaultTableModel tableModel;
 
@@ -150,6 +154,24 @@ class View extends JFrame {
             tableModel.addRow(rowData); // Adds song to Library table
         }
     }
+    
+    /**
+     * This method updates the view of the database tables in the GUI
+     * @param playlistName
+     */
+    public void updateView(String playlistName) {
+        int initialTableSize = tableModel.getRowCount();
+        for(int row = initialTableSize-1; row >= 0; row--)
+            tableModel.removeRow(row);
+
+        if(playlistName == "Library") playlistName = null;
+        Object[][] songData = database.returnAllSongs(playlistName);
+        for(int i = 0; i < songData.length; i++) {
+            Object[] rowData = {songData[i][0], songData[i][1], songData[i][2], songData[i][3], songData[i][4], songData[i][5], songData[i][6]};
+            tableModel.addRow(rowData);
+        }
+        tableModel.fireTableDataChanged();
+    }
 
     class popupMenuListener extends MouseAdapter {
     	
@@ -187,10 +209,11 @@ class View extends JFrame {
         	int rows[] = songTable.getSelectedRows();
             if(rows.length > 0) {
                 for(int row = rows.length-1; row >= 0; row--) {
-                    Song song = controller.getSong(rows[row]);
+                	String path = (String)songTable.getValueAt(row, 6);
+                    Song song = controller.getSong(path);
                     boolean wasSongDeleted = database.deleteSong(song);
                     if(wasSongDeleted) {
-                        controller.deleteSong(rows[row]);
+                        controller.deleteSong(path);
                         tableModel.removeRow(rows[row]);
                     } else System.out.println("Couldn't delete " + song.getTitle());
                 }
@@ -232,6 +255,16 @@ class View extends JFrame {
             }
         }
     }
+    
+    class sidePanelSelectionListener implements TreeSelectionListener {
+        @Override
+        public void valueChanged(TreeSelectionEvent e) {
+            JTree tree = (JTree)e.getSource();
+            DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode)tree.getLastSelectedPathComponent();
+            if (selectedNode.isLeaf())
+                updateView(selectedNode.toString());
+        }
+    }
 
     class quitButtonListener implements ActionListener {
         @Override
@@ -251,8 +284,10 @@ class View extends JFrame {
     class playButtonListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            if(songTable.getSelectedRow() != -1)
-                controller.play(controller.getSong(songTable.getSelectedRow()),false);
+            if(songTable.getSelectedRow() != -1) {
+            	String path = (String)songTable.getValueAt(songTable.getSelectedRow(), 6);
+            	controller.play(controller.getSong(path), false);
+            }
             else System.out.println("Select a song first to play it!");
         }
     }
@@ -327,13 +362,13 @@ class View extends JFrame {
 
         // Adding all songs in database to song table
         
-        songData = database.returnAllSongs();
+        songData = database.returnAllSongs(null);
         
         for(int i = 0; i < songData.length; i++) {	
             controller.addSong(new Song((String)songData[i][6]));
         }
 
-        tableModel = new DefaultTableModel(songData, tabeHeaders);
+        tableModel = new DefaultTableModel(songData, tableHeaders);
         songTable = new JTable(tableModel);
         songTable.addMouseListener(new popupMenuListener());
         
@@ -393,6 +428,9 @@ class View extends JFrame {
                 }
             });
 
+        songTable.getColumnModel().getColumn(6).setMinWidth(0);
+        songTable.getColumnModel().getColumn(6).setMaxWidth(0);
+        songTable.getColumnModel().getColumn(6).setResizable(false);
         scrollPane = new JScrollPane(songTable);
 
     }
@@ -456,6 +494,8 @@ class View extends JFrame {
     	playlistTree = new JTree();
     	playlistTree.setRootVisible(false);
     	playlistTree.setModel(treeModel);
+    	playlistTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        playlistTree.addTreeSelectionListener(new sidePanelSelectionListener());
     	
     	DefaultMutableTreeNode library = new DefaultMutableTreeNode("Library");
     	DefaultMutableTreeNode playlists = new DefaultMutableTreeNode("Playlists");
