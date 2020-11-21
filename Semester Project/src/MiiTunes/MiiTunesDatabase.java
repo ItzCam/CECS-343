@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 
 /**
  * This class sets up our Miitunes Database to be connected
- * Version 1.4 - Added side panel featuring playlists
+ * Version 1.5 - Updated lots of stuff
  * 
  * @author Antonio Hughes
  * @author Noah Avina
@@ -99,9 +99,12 @@ public class MiiTunesDatabase {
     public boolean insertSong(Song song, String playlistName) {
     	String query = "";
     	Object[] args;
+    	int genreOverride = 0;
     	
     	if(playlistName == null) {
     		query = "INSERT INTO Songs VALUES (?,?,?,?,?,?,?)";
+    		if(song.getGenre() == -1) genreOverride = 2;
+    		else genreOverride = song.getGenre();
     		args = new Object[] {song.getTitle(), song.getArtist(), song.getAlbum(), song.getYear(), song.getGenre(), song.getComment(), song.getPath()};
     	}
     	else {
@@ -128,12 +131,14 @@ public class MiiTunesDatabase {
      * This method will return all the songs from the MiiTunes database
      * @return a 2D array containing the song info for our table in the GUI
      */
-    public Object[][] returnAllSongs() {
+    public Object[][] returnAllSongs(String playlistName) {
     	
     	PreparedStatement statement = null;
+    	String additionalClause = "";
+    	if(playlistName != null) additionalClause = "INNER JOIN SongPlaylist USING (path) INNER JOIN Playlists USING (playlistName)";
 
         try {
-            statement = connection.prepareStatement("SELECT COUNT(*) FROM Songs");
+            statement = connection.prepareStatement("SELECT COUNT(*) FROM Songs + additionalClause");
             ResultSet results = statement.executeQuery();
             int tableSize = 0;
             while(results.next()) tableSize = results.getInt(1);
@@ -142,11 +147,13 @@ public class MiiTunesDatabase {
             Object[][] songData = new Object[tableSize][7];
 
             // Execute query again to actually get info from ResultSet
-            statement = connection.prepareStatement("SELECT * FROM Songs");
+            if(playlistName != null) statement = connection.prepareStatement("SELECT title, artist, album, yearCreated, genre, comment, path, playlistName FROM Songs" + additionalClause + " WHERE playlistName = '" + playlistName + "'");
+            else statement = connection.prepareStatement("SELECT * FROM Songs");
             results = statement.executeQuery();
 
-            for(int row = 0; row < tableSize; row++) {
-                results.next();
+           int row = 0;
+           while(results.next()) {
+        	   
                 songData[row][0] = results.getString(1);
                 songData[row][1] = results.getString(2);
                 songData[row][2] = results.getString(3); 
@@ -158,6 +165,8 @@ public class MiiTunesDatabase {
         
                 songData[row][5] = results.getString(6);
                 songData[row][6] = results.getString(7);
+                
+                row++;
             }
 
             return songData;
@@ -181,7 +190,7 @@ public class MiiTunesDatabase {
     		ResultSet results = statement.executeQuery();
     		
     		while(results.next())
-    			playlists.add(results.getString("name"));
+    			playlists.add(results.getString("playlistName"));
     	} catch(SQLException e) { e.printStackTrace(); }
     	return playlists;
     	
