@@ -10,7 +10,9 @@ import java.io.PrintStream;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
+
 
 
 /**
@@ -19,7 +21,7 @@ import java.util.Map;
  * @author Antonio Hughes
  * @author Noah Avina
  * 
- * Version 1.1 - Genres & Sidebar
+ * Version 1.2 - Updated lots of stuff
  *
  */
 
@@ -33,7 +35,8 @@ public class MiiTunesController implements BasicPlayerListener {
     private boolean repeatSong = false, repeatPlaylist = false;
     private boolean isExternalSongPlaying = false;
 
-    private ArrayList<Song> songs;
+    private HashMap<String, Song> songs;
+    private ArrayList<Song> playOrder;
     
     public static ArrayList<String> genres = new ArrayList<>(Arrays.asList("Hip-Hop/Rap", "Pop", "Unknown"));
 
@@ -46,7 +49,8 @@ public class MiiTunesController implements BasicPlayerListener {
     	controller = (BasicController)player;
     	this.setController(controller);
 
-        songs = new ArrayList<Song>();
+        songs = new HashMap<String, Song>();
+        playOrder = new ArrayList<Song>();
     }
 
     /**
@@ -54,7 +58,7 @@ public class MiiTunesController implements BasicPlayerListener {
      * @param song - song to be added
      */
     public void addSong(Song song) {
-    	songs.add(song);
+    	songs.put(song.getPath(), song);
     }
 
     /**
@@ -62,27 +66,34 @@ public class MiiTunesController implements BasicPlayerListener {
      * @return all songs
      */
     public ArrayList<Song> getAllSongs() {
-    	return songs;
+    	return new ArrayList<Song>(songs.values());
     }
 
     /**
-     * Method to find a certain song by its index in MiiTunes
-     * @param index - position of the song
+     * Method to find a certain song by its path in MiiTunes
+     * @param path - directory of the song is stored
      * @return specific song(s)
      */
-    public Song getSong(int index) {
-        return songs.get(index);
+    public Song getSong(String path) {
+        return songs.get(path);
     }
 
     /**
      * Method deletes a certain song by its index in MiiTunes
      * @param index - position of the song
      */
-    public void deleteSong(int index) {
-        if(songs.get(index) == songPlaying) stop();
-        songs.remove(index);
+    public void deleteSong(String path) {
+        if(songs.get(path) == songPlaying) stop();
+        songs.remove(path);
+    }
+    
+    private void updatePlayOrder() {
+    	playOrder.clear();
+    	for(Song song : songs.values())
+    		playOrder.add(song);
     }
 
+    
     /**
      * Method plays a song
      * @param song the song to be played
@@ -109,6 +120,7 @@ public class MiiTunesController implements BasicPlayerListener {
                 if(update)MiiTunes.view.updatePauseResumeButton("Pause");
 
                 songPlaying = song;
+                updatePlayOrder();
                 isExternalSongPlaying = isSongExternal;
 
                 // Updates GUI area that displays the song that is currently playing
@@ -121,6 +133,7 @@ public class MiiTunesController implements BasicPlayerListener {
     	}
     }
 
+    
     /**
      * Method stops the current song from playing
      */
@@ -148,6 +161,7 @@ public class MiiTunesController implements BasicPlayerListener {
     	else System.out.println("Nothing is playing");
     }
 
+    
     /**
      * Method pauses the song that is currently playing
      * or resumes the song that is currently paused
@@ -180,6 +194,7 @@ public class MiiTunesController implements BasicPlayerListener {
     	else System.out.println("Nothing is playing");
     }
 
+    
     /**
      * Method plays the next song in the library
      */
@@ -209,8 +224,8 @@ public class MiiTunesController implements BasicPlayerListener {
             // If the user doesn't have repeat song option selected, so play next song in library
             
             else {
-                int index = songs.indexOf(songPlaying);
-                if(index == (songs.size() - 1)) {
+                int index = playOrder.indexOf(songPlaying);
+                if(index == (playOrder.size() - 1)) {
                     if(repeatPlaylist) index = 0;
                     else {
                         stop();
@@ -219,7 +234,7 @@ public class MiiTunesController implements BasicPlayerListener {
                 }
                 else index++;
 
-                Song song = songs.get(index);
+                Song song = playOrder.get(index);
 
                 play(song, false);
                 songPlaying = song;
@@ -250,9 +265,9 @@ public class MiiTunesController implements BasicPlayerListener {
             }
             // User doesn't have repeat song option selected, so play previous song in library
             else {
-                int index = songs.indexOf(songPlaying);
+                int index = playOrder.indexOf(songPlaying);
                 if(index == 0) {
-                    if(repeatPlaylist) index = songs.size() - 1;
+                    if(repeatPlaylist) index = playOrder.size() - 1;
                     else {
                         stop();
                         return;
@@ -260,7 +275,7 @@ public class MiiTunesController implements BasicPlayerListener {
                 }
                 else index--;
 
-                Song song = songs.get(index);
+                Song song = playOrder.get(index);
 
                 play(song, false);
                 songPlaying = song;
