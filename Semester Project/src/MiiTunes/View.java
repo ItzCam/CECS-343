@@ -24,7 +24,6 @@ import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 import javax.swing.text.TableView.TableRow;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.table.TableColumn;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
@@ -56,7 +55,7 @@ import java.util.List;
  * @author Antonio Hughes
  * @author Noah Avina
  *
- * Version 1.6 - Updated lots of stuff
+ * Version 1.7 - Use song paths for play instead of song object
  */
 
 class View extends JFrame {
@@ -84,6 +83,8 @@ class View extends JFrame {
     JTree playlistTree;
     DefaultTreeModel treeModel;
     DefaultMutableTreeNode sidePanelTreeRoot;
+    
+    String currentPlaylist;
     
     boolean row_is_selected = false;
     int index;
@@ -147,7 +148,7 @@ class View extends JFrame {
      * @param song - object containing tag information and file path
      */
     public void addSong(Song song) {
-        boolean wasSongInserted = database.insertSong(song, null); // Inserts song into the database
+        boolean wasSongInserted = database.insertSong(song, "Library"); // Inserts song into the database
         if(wasSongInserted) {
             controller.addSong(song); // Adds song to player list
             Object[] rowData = {song.getTitle(),song.getArtist(),song.getAlbum(),song.getYear(),controller.genres.get(song.getGenre()),song.getComment()};
@@ -159,12 +160,11 @@ class View extends JFrame {
      * This method updates the view of the database tables in the GUI
      * @param playlistName
      */
-    public void updateView(String playlistName) {
-        int initialTableSize = tableModel.getRowCount();
-        for(int row = initialTableSize-1; row >= 0; row--)
+    public void updateSongTableView(String playlistName) {
+    	// Clear the table
+        for(int row = tableModel.getRowCount() - 1; row >= 0; row--)
             tableModel.removeRow(row);
 
-        if(playlistName == "Library") playlistName = null;
         Object[][] songData = database.returnAllSongs(playlistName);
         for(int i = 0; i < songData.length; i++) {
             Object[] rowData = {songData[i][0], songData[i][1], songData[i][2], songData[i][3], songData[i][4], songData[i][5], songData[i][6]};
@@ -191,7 +191,7 @@ class View extends JFrame {
             	File[] files = fileChooser.getSelectedFiles();
             	for(File file : files) {
             		Song song = new Song(file.getPath());
-                    boolean wasSongInserted = database.insertSong(song, null);
+                    boolean wasSongInserted = database.insertSong(song, "Library");
                     if(wasSongInserted) {
                         controller.addSong(song);
                         Object[] rowData = {song.getTitle(),song.getArtist(),song.getAlbum(),song.getYear(),controller.genres.get(song.getGenre()),song.getComment()};
@@ -209,11 +209,10 @@ class View extends JFrame {
         	int rows[] = songTable.getSelectedRows();
             if(rows.length > 0) {
                 for(int row = rows.length-1; row >= 0; row--) {
-                	String path = (String)songTable.getValueAt(row, 6);
-                    Song song = controller.getSong(path);
+                    Song song = new Song(songTable.getValueAt(row, 6).toString());
                     boolean wasSongDeleted = database.deleteSong(song);
                     if(wasSongDeleted) {
-                        controller.deleteSong(path);
+                        controller.deleteSong(song);
                         tableModel.removeRow(rows[row]);
                     } else System.out.println("Couldn't delete " + song.getTitle());
                 }
@@ -230,14 +229,14 @@ class View extends JFrame {
     	}
     }
 
-    class playIndividualSongListener implements ActionListener {
+    class playExternalSongListener implements ActionListener {
     	
     	@Override
         public void actionPerformed(ActionEvent e) {
             int returnVal = fileChooser.showOpenDialog(new JPanel());
             if(returnVal == JFileChooser.APPROVE_OPTION) {
-                Song song = new Song(fileChooser.getSelectedFile().getAbsolutePath());
-                controller.play(song, true);
+                String songPath = fileChooser.getSelectedFile().getAbsolutePath();
+                controller.play(songPath, -1);
             }
         }
     }
@@ -247,11 +246,17 @@ class View extends JFrame {
         @Override
         public void actionPerformed(ActionEvent e) {
             String playlistName = JOptionPane.showInputDialog("Playlist name: ");
-            boolean wasInserted = database.insertPlaylist(playlistName);
-            if(wasInserted) {
-                DefaultMutableTreeNode playlist = new DefaultMutableTreeNode(playlistName);
-                ((DefaultMutableTreeNode)sidePanelTreeRoot.getChildAt(1)).add(playlist);
-                treeModel.reload(sidePanelTreeRoot.getChildAt(1));
+            if(playlistName.equals("Library")) {
+                System.out.println("You cannot create a playlist with that name");
+            }
+            else {
+                boolean wasInserted = database.insertPlaylist(playlistName);
+                if(wasInserted) {
+                    DefaultMutableTreeNode playlist = new DefaultMutableTreeNode(playlistName);
+                    ((DefaultMutableTreeNode)sidePanelTreeRoot.getChildAt(1)).add(playlist);
+                    treeModel.reload(sidePanelTreeRoot.getChildAt(1));
+                }
+                else System.out.println("Unable to create playlist");
             }
         }
     }
@@ -261,8 +266,11 @@ class View extends JFrame {
         public void valueChanged(TreeSelectionEvent e) {
             JTree tree = (JTree)e.getSource();
             DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode)tree.getLastSelectedPathComponent();
-            if (selectedNode.isLeaf())
-                updateView(selectedNode.toString());
+            if (selectedNode.isLeaf()) {
+                updateSongTableView(selectedNode.toString());
+                currentPlaylist = selectedNode.toString();
+                System.out.println(currentPlaylist);
+            }
         }
     }
 
@@ -285,8 +293,16 @@ class View extends JFrame {
         @Override
         public void actionPerformed(ActionEvent e) {
             if(songTable.getSelectedRow() != -1) {
+            	ArrayList<String> strings = new ArrayList<String>();
+                Object[][] songData = database.returnAllSongs(currentPlaylist);
+
+                for(int i = 0; i < songData.length; i++) {
+                    Song song = new Song((String)songData[i][6]);
+                    strings.add(songData[i][6].toString());
+                }
+                controller.updatePlayOrder(strings);
             	String path = (String)songTable.getValueAt(songTable.getSelectedRow(), 6);
-            	controller.play(controller.getSong(path), false);
+            	controller.play(path, songTable.getSelectedRow());
             }
             else System.out.println("Select a song first to play it!");
         }
@@ -362,7 +378,8 @@ class View extends JFrame {
 
         // Adding all songs in database to song table
         
-        songData = database.returnAllSongs(null);
+        songData = database.returnAllSongs("Library");
+        currentPlaylist = "Library";
         
         for(int i = 0; i < songData.length; i++) {	
             controller.addSong(new Song((String)songData[i][6]));
@@ -432,6 +449,7 @@ class View extends JFrame {
         songTable.getColumnModel().getColumn(6).setMaxWidth(0);
         songTable.getColumnModel().getColumn(6).setResizable(false);
         scrollPane = new JScrollPane(songTable);
+        currentPlaylist = "Library";
 
     }
     
@@ -446,19 +464,19 @@ class View extends JFrame {
 
         JMenuItem addSongMenuItem = new JMenuItem("Add songs");
         JMenuItem deleteSongMenuItem = new JMenuItem("Delete selected songs");
-        JMenuItem playIndividualSongMenuItem = new JMenuItem("Play a song not in the library");
+        JMenuItem playExternalSongMenuItem = new JMenuItem("Play a song not in the library");
         JMenuItem createPlaylist = new JMenuItem("Create a playlist");
         JMenuItem quitApplicationMenuItem = new JMenuItem("Exit program");
 
         addSongMenuItem.addActionListener(new addSongListener());
         deleteSongMenuItem.addActionListener(new deleteSongListener());
-        playIndividualSongMenuItem.addActionListener(new playIndividualSongListener());
+        playExternalSongMenuItem.addActionListener(new playExternalSongListener());
         createPlaylist.addActionListener(new createPlaylistListener());
         quitApplicationMenuItem.addActionListener(new quitButtonListener());
 
         fileMenu.add(addSongMenuItem);
         fileMenu.add(deleteSongMenuItem);
-        fileMenu.add(playIndividualSongMenuItem);
+        fileMenu.add(playExternalSongMenuItem);
         fileMenu.add(new JSeparator());
         fileMenu.add(createPlaylist);
         fileMenu.add(new JSeparator());
