@@ -1,8 +1,7 @@
-# CECS-343
+# CECS343 - Introduction to Software Engineering
 
-Antonio Hughes
-Noah Avina
+Contributors: Antonio Hughes & Noah Avina
 
-Prof. Hoffman
+Prof. M. Hoffman
 
 Intro Software Engineering - MiiTunes MP3 Player Semester Project
